@@ -3,19 +3,15 @@ Sepsis Onset Prediction — End-to-End Pipeline Runner
 =====================================================
 
 Usage:
-    # Quick demo with synthetic data
     python run_pipeline.py --synthetic --n-patients 500
 
     # PhysioNet 2019 data (auto-download if not present)
     python run_pipeline.py --physionet
 
-    # Use existing local data directory
     python run_pipeline.py --data-dir "C:/path/to/psv/files"
 
-    # Skip deep learning (faster)
     python run_pipeline.py --synthetic --no-dl
 
-    # Use up to N patients from real data
     python run_pipeline.py --physionet --max-patients 5000
 """
 
@@ -24,13 +20,11 @@ import sys
 import os
 from pathlib import Path
 
-# Ensure UTF-8 output on Windows (before any other imports that print)
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 # ─────────────────────────────────────────────────
-# Setup path so submodules can be found
 # ─────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -135,7 +129,6 @@ def main():
         )
 
         if mimic_dir:
-            # Full MIMIC-III extraction from raw CSV directory
             logger.info(f"MIMIC-III raw extraction from: {mimic_dir}")
             from utils import DATA_DIR
             raw_df = load_mimic_from_raw(
@@ -143,7 +136,6 @@ def main():
                 output_dir=str(DATA_DIR / "mimic"),
                 max_stays=args.max_patients
             )
-            # Pass extracted DataFrame directly through the rest of the pipeline
             from preprocessing import (
                 create_prediction_labels, handle_missing_values,
                 engineer_temporal_features, detect_label_noise,
@@ -162,7 +154,6 @@ def main():
             feature_cols = get_feature_columns(train_df)
 
         elif mimic_csv:
-            # Pre-extracted MIMIC CSV (already ran extract_mimic.py)
             logger.info(f"Loading pre-extracted MIMIC CSV: {mimic_csv}")
             raw_df = load_mimic_csv(mimic_csv, max_patients=args.max_patients)
             from preprocessing import (
@@ -216,7 +207,6 @@ def main():
                 logger.info(f"LSTM training complete in {t}")
 
                 if lstm_model is not None:
-                    # Evaluate LSTM on test set
                     from sklearn.metrics import (
                         roc_auc_score, average_precision_score,
                         brier_score_loss
@@ -237,7 +227,6 @@ def main():
                             test_labels, test_probs, test_preds, split="test"
                         )
 
-                        # Add LSTM to results for evaluation
                         results["lstm"] = {
                             "model": lstm_model,
                             "threshold": threshold,
@@ -250,7 +239,6 @@ def main():
                             "use_scaled": False,
                             "feature_cols": feature_cols
                         }
-                        # Update color map
                         from evaluation import MODEL_COLORS
                         MODEL_COLORS["lstm"] = "#AB47BC"
             else:
@@ -280,7 +268,6 @@ def main():
     logger.info(f"  [metrics_csv ] {OUTPUTS_DIR / 'metrics_table.csv'}")
     logger.info("=" * 60)
 
-    # Print final metrics table
     print("\n" + "=" * 60)
     print("FINAL TEST SET RESULTS")
     print("=" * 60)

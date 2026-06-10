@@ -22,7 +22,6 @@ Key tables used:
 Usage:
     python extract_mimic.py --mimic-dir /path/to/mimic_csvs --output-dir ./data
 
-    # Quick test with only 500 ICU stays
     python extract_mimic.py --mimic-dir /path/to/mimic --output-dir ./data --max-stays 500
 """
 
@@ -39,7 +38,6 @@ warnings.filterwarnings("ignore")
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# Local imports
 sys.path.insert(0, str(Path(__file__).parent))
 from item_ids import (
     VITAL_ITEMIDS, LAB_ITEMIDS, FIO2_CHART_ITEMIDS,
@@ -48,7 +46,6 @@ from item_ids import (
 
 
 # ─────────────────────────────────────────────────
-# HELPER — flatten ItemID dict to list
 # ─────────────────────────────────────────────────
 
 def all_vital_itemids() -> List[int]:
@@ -81,7 +78,6 @@ def build_itemid_to_feature() -> Dict[int, str]:
 
 
 # ─────────────────────────────────────────────────
-# 1. LOAD ICU STAYS METADATA
 # ─────────────────────────────────────────────────
 
 def load_icu_metadata(mimic_dir: str, max_stays: Optional[int] = None) -> pd.DataFrame:
@@ -101,7 +97,6 @@ def load_icu_metadata(mimic_dir: str, max_stays: Optional[int] = None) -> pd.Dat
     )
     print(f"    {len(icu):,} ICU stays")
 
-    # Limit for testing
     if max_stays:
         icu = icu.head(max_stays)
 
@@ -120,24 +115,18 @@ def load_icu_metadata(mimic_dir: str, max_stays: Optional[int] = None) -> pd.Dat
                  "DIAGNOSIS", "EDREGTIME", "EDOUTTIME"]
     )
 
-    # Join
     df = icu.merge(patients[["SUBJECT_ID", "DOB", "DOD", "GENDER"]],
                    on="SUBJECT_ID", how="left")
     df = df.merge(admissions, on=["HADM_ID", "SUBJECT_ID"], how="left")
 
-    # Compute ICU LOS (hours)
     df["icu_los_hours"] = (df["OUTTIME"] - df["INTIME"]).dt.total_seconds() / 3600
 
-    # Compute age at ICU admission
     # Note: MIMIC shifts patients >89 by 300 years (DOB will be ~1800s)
     df["Age"] = (df["INTIME"] - df["DOB"]).dt.days / 365.25
-    # Cap at 89 for de-identified >89 patients
     df["Age"] = df["Age"].clip(upper=89)
 
-    # Gender encoding
     df["Gender"] = (df["GENDER"] == "M").astype(int)
 
-    # ICU unit type encoding
     unit_map = {
         "MICU": 0, "CCU": 1, "CSRU": 2,
         "SICU": 3, "TSICU": 4, "NICU": 5
@@ -145,12 +134,10 @@ def load_icu_metadata(mimic_dir: str, max_stays: Optional[int] = None) -> pd.Dat
     df["Unit1"] = df["FIRST_CAREUNIT"].map(unit_map).fillna(0).astype(int)
     df["Unit2"] = df["LAST_CAREUNIT"].map(unit_map).fillna(0).astype(int)
 
-    # Hospital admission time offset (hours before ICU admission)
     df["HospAdmTime"] = (
         (df["INTIME"] - df["ADMITTIME"]).dt.total_seconds() / 3600
     ).clip(-72, 0)
 
-    # Patient ID in our pipeline format
     df["patient_id"] = df["ICUSTAY_ID"].apply(lambda x: f"mimic_{int(x)}")
 
     print(f"  ICU stays after join: {len(df):,}")
@@ -160,7 +147,6 @@ def load_icu_metadata(mimic_dir: str, max_stays: Optional[int] = None) -> pd.Dat
 
 
 # ─────────────────────────────────────────────────
-# 2. EXTRACT CHARTEVENTS (VITAL SIGNS)
 # ─────────────────────────────────────────────────
 
 def extract_chartevents(
@@ -186,7 +172,6 @@ def extract_chartevents(
     target_stays = set(icustay_ids)
     itemid_to_feat = build_itemid_to_feature()
 
-    # Build intime lookup for hour calculation
     intime_lookup = icustay_metadata.set_index("ICUSTAY_ID")["INTIME"]
 
     print(f"  Extracting CHARTEVENTS (this may take several minutes)...")
@@ -205,7 +190,6 @@ def extract_chartevents(
     ):
         total_rows += len(chunk)
 
-        # Filter
         chunk = chunk[
             (chunk["ICUSTAY_ID"].isin(target_stays)) &
             (chunk["ITEMID"].isin(target_ids)) &
@@ -216,17 +200,14 @@ def extract_chartevents(
         if chunk.empty:
             continue
 
-        # Map ITEMID → feature name
         chunk["feature"] = chunk["ITEMID"].map(itemid_to_feat)
 
-        # Convert Fahrenheit → Celsius
         temp_f_mask = chunk["ITEMID"].isin(VITAL_ITEMIDS.get("Temp_F", []))
         chunk.loc[temp_f_mask, "VALUENUM"] = (
             chunk.loc[temp_f_mask, "VALUENUM"] - 32
         ) * 5 / 9
         chunk.loc[temp_f_mask, "feature"] = "Temp_C"
 
-        # Compute hour offset from ICU admission
         chunk["ICUSTAY_ID"] = chunk["ICUSTAY_ID"].astype(int)
         chunk["intime"] = chunk["ICUSTAY_ID"].map(intime_lookup)
         chunk = chunk.dropna(subset=["intime"])
@@ -234,7 +215,6 @@ def extract_chartevents(
             (chunk["CHARTTIME"] - chunk["intime"]).dt.total_seconds() / 3600
         ).round().astype(int)
 
-        # Keep only within 0–168h (first week of ICU)
         chunk = chunk[(chunk["hour"] >= 0) & (chunk["hour"] <= 168)]
 
         kept_rows += len(chunk)
@@ -250,7 +230,6 @@ def extract_chartevents(
 
     chart_df = pd.concat(all_chunks, ignore_index=True)
 
-    # Aggregate: median per (stay, hour, feature) — robust to outliers
     pivot = (
         chart_df
         .groupby(["ICUSTAY_ID", "hour", "feature"])["VALUENUM"]
@@ -262,11 +241,9 @@ def extract_chartevents(
     )
     pivot.columns.name = None
 
-    # Rename Temp_C → Temp
     if "Temp_C" in pivot.columns:
         pivot.rename(columns={"Temp_C": "Temp"}, inplace=True)
 
-    # Add patient_id
     icustay_to_pid = icustay_metadata.set_index("ICUSTAY_ID")["patient_id"]
     pivot["patient_id"] = pivot["ICUSTAY_ID"].map(icustay_to_pid)
 
@@ -275,7 +252,6 @@ def extract_chartevents(
 
 
 # ─────────────────────────────────────────────────
-# 3. EXTRACT LABEVENTS
 # ─────────────────────────────────────────────────
 
 def extract_labevents(
@@ -301,7 +277,6 @@ def extract_labevents(
     target_hadms = set(hadm_ids)
     itemid_to_feat = build_itemid_to_feature()
 
-    # Build hadm → icu stay info lookup
     hadm_lookup = icustay_metadata.set_index("HADM_ID")[[
         "ICUSTAY_ID", "patient_id", "INTIME", "OUTTIME"
     ]].drop_duplicates()
@@ -325,19 +300,16 @@ def extract_labevents(
         if chunk.empty:
             continue
 
-        # Join ICU stay info
         chunk = chunk.merge(
             hadm_lookup.reset_index(),
             on="HADM_ID", how="inner"
         )
 
-        # Filter to within ICU stay time window
         chunk = chunk[
             (chunk["CHARTTIME"] >= chunk["INTIME"]) &
             (chunk["CHARTTIME"] <= chunk["OUTTIME"])
         ]
 
-        # Hour offset
         chunk["hour"] = (
             (chunk["CHARTTIME"] - chunk["INTIME"]).dt.total_seconds() / 3600
         ).round().astype(int)
@@ -353,7 +325,6 @@ def extract_labevents(
 
     lab_df = pd.concat(all_chunks, ignore_index=True)
 
-    # Pivot to wide format
     pivot = (
         lab_df
         .groupby(["ICUSTAY_ID", "patient_id", "hour", "feature"])["VALUENUM"]
@@ -370,7 +341,6 @@ def extract_labevents(
 
 
 # ─────────────────────────────────────────────────
-# 4. EXTRACT VASOPRESSOR FLAGS
 # ─────────────────────────────────────────────────
 
 def extract_vasopressors(
@@ -410,7 +380,6 @@ def extract_vasopressors(
 
     vaso_df = pd.concat(rows, ignore_index=True)
 
-    # Expand drug administrations to hourly flags
     hourly_flags = []
     for _, row in vaso_df.iterrows():
         stay_id = int(row["ICUSTAY_ID"])
@@ -435,7 +404,6 @@ def extract_vasopressors(
 
 
 # ─────────────────────────────────────────────────
-# 5. BUILD HOURLY SCAFFOLD + MERGE ALL FEATURES
 # ─────────────────────────────────────────────────
 
 def build_hourly_scaffold(icustay_metadata: pd.DataFrame) -> pd.DataFrame:
@@ -474,7 +442,6 @@ def apply_plausibility_bounds(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────
-# MAIN EXTRACTION PIPELINE
 # ─────────────────────────────────────────────────
 
 def extract_mimic_features(
@@ -554,7 +521,6 @@ def extract_mimic_features(
         )
         df["on_vasopressor"] = df["on_vasopressor"].fillna(False)
 
-    # Apply plausibility bounds
     df = apply_plausibility_bounds(df)
 
     # ── Sepsis-3 labels ───────────────────────────────────────────────

@@ -11,13 +11,11 @@ from typing import Optional
 import numpy as np
 
 # ─────────────────────────────────────────────────
-# PYTHON PATH FOR LOCAL PYTHON INSTALL
 # ─────────────────────────────────────────────────
 
 PYTHON_EXE = r"C:\Users\abdul\AppData\Local\Python\bin\python.exe"
 
 # ─────────────────────────────────────────────────
-# LOGGING
 # ─────────────────────────────────────────────────
 
 def setup_logger(name: str = "sepsis", log_file: Optional[str] = None) -> logging.Logger:
@@ -30,12 +28,10 @@ def setup_logger(name: str = "sepsis", log_file: Optional[str] = None) -> loggin
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # Console handler
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
     logger.addHandler(ch)
 
-    # File handler
     if log_file:
         fh = logging.FileHandler(log_file)
         fh.setFormatter(fmt)
@@ -45,7 +41,6 @@ def setup_logger(name: str = "sepsis", log_file: Optional[str] = None) -> loggin
 
 
 # ─────────────────────────────────────────────────
-# DIRECTORY SETUP
 # ─────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
@@ -60,7 +55,6 @@ def ensure_dirs():
 
 
 # ─────────────────────────────────────────────────
-# TIMER CONTEXT MANAGER
 # ─────────────────────────────────────────────────
 
 class Timer:
@@ -77,7 +71,6 @@ class Timer:
 
 
 # ─────────────────────────────────────────────────
-# PHYSIONET 2019 DOWNLOAD HELPERS
 # ─────────────────────────────────────────────────
 
 PHYSIONET_TRAINING_A = (
@@ -103,7 +96,6 @@ def download_physionet_2019(dest_dir: str = None) -> str:
     dest = Path(dest_dir or DATA_DIR / "physionet2019")
     dest.mkdir(parents=True, exist_ok=True)
 
-    # Check if already extracted
     psv_files = list(dest.glob("**/*.psv"))
     if len(psv_files) > 100:
         print(f"  Data already present: {len(psv_files)} PSV files in {dest}")
@@ -130,7 +122,6 @@ def download_physionet_2019(dest_dir: str = None) -> str:
             print("  Falling back to synthetic data.")
             return None
 
-    # Extract
     print(f"  Extracting {zip_path}...")
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -146,7 +137,6 @@ def download_physionet_2019(dest_dir: str = None) -> str:
 
 
 # ─────────────────────────────────────────────────
-# REPRODUCIBILITY
 # ─────────────────────────────────────────────────
 
 def set_seed(seed: int = 42):

@@ -34,7 +34,6 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional
 
-# Ensure UTF-8 on Windows
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -45,7 +44,6 @@ from item_ids import (
 
 
 # ─────────────────────────────────────────────────
-# SOFA COMPONENT SCORING
 # ─────────────────────────────────────────────────
 
 def sofa_respiratory(pao2_fio2: float) -> int:
@@ -105,7 +103,6 @@ def sofa_renal(creatinine: float, urine_24h: Optional[float] = None) -> int:
         elif creatinine >= 3.5: score = 3
         elif creatinine >= 2.0: score = 2
         elif creatinine >= 1.2: score = 1
-    # Urine output criterion (if available — takes max of two criteria)
     if urine_24h is not None and not pd.isna(urine_24h):
         if urine_24h < 200:   score = max(score, 4)
         elif urine_24h < 500: score = max(score, 3)
@@ -113,7 +110,6 @@ def sofa_renal(creatinine: float, urine_24h: Optional[float] = None) -> int:
 
 
 # ─────────────────────────────────────────────────
-# HOURLY SOFA COMPUTATION
 # ─────────────────────────────────────────────────
 
 def compute_hourly_sofa(
@@ -148,7 +144,6 @@ def compute_hourly_sofa(
 
     # ── PaO2/FiO2 ratio ───────────────────────────────────────────────
     if "PaO2" in df.columns and "FiO2" in df.columns:
-        # FiO2 may be in % (21-100) or fraction (0.21-1.0) — normalize
         df["FiO2_norm"] = df["FiO2"].apply(
             lambda x: x / 100.0 if (not pd.isna(x) and x > 1.0) else x
         )
@@ -204,7 +199,6 @@ def compute_hourly_sofa(
 
 
 # ─────────────────────────────────────────────────
-# SUSPECTED INFECTION DETECTION
 # ─────────────────────────────────────────────────
 
 def detect_suspected_infection(
@@ -229,7 +223,6 @@ def detect_suspected_infection(
         cultures_df = pd.read_csv(micro_path, usecols=[
             "SUBJECT_ID", "HADM_ID", "SPEC_TYPE_DESC", "CHARTTIME"
         ], parse_dates=["CHARTTIME"])
-        # Keep only blood cultures
         blood_cultures = cultures_df[
             cultures_df["SPEC_TYPE_DESC"].str.contains(
                 "blood|BLOOD", case=False, na=False
@@ -265,7 +258,6 @@ def detect_suspected_infection(
     icu_map = icustays_df.set_index("ICUSTAY_ID")
 
     for hadm_id, abx_group in antibiotics_df.groupby("HADM_ID"):
-        # Find corresponding ICU stay
         icu_rows = icustays_df[icustays_df["HADM_ID"] == hadm_id]
         if icu_rows.empty:
             continue
@@ -274,17 +266,14 @@ def detect_suspected_infection(
         icu_intime = pd.to_datetime(icu_row["INTIME"])
         patient_id = f"mimic_{int(icu_row['ICUSTAY_ID'])}"
 
-        # Earliest antibiotic time
         first_abx_time = abx_group["STARTTIME"].min()
         if pd.isna(first_abx_time):
             continue
 
-        # Check if blood culture within ±1 day
         if len(blood_cultures) > 0:
             pt_cultures = blood_cultures[blood_cultures["HADM_ID"] == hadm_id]
             if len(pt_cultures) > 0:
                 culture_times = pd.to_datetime(pt_cultures["CHARTTIME"])
-                # Criterion: culture within 1 day before or 1 day after antibiotic
                 close_culture = culture_times[
                     abs((culture_times - first_abx_time).dt.total_seconds()) <= 86400
                 ]
@@ -292,11 +281,9 @@ def detect_suspected_infection(
             else:
                 has_culture = False
         else:
-            # If no culture data, use antibiotics alone (less specific)
             has_culture = True
 
         if has_culture:
-            # Convert to ICU hours offset
             offset_hours = (first_abx_time - icu_intime).total_seconds() / 3600
             results.append({
                 "patient_id": patient_id,
@@ -309,7 +296,6 @@ def detect_suspected_infection(
 
 
 # ─────────────────────────────────────────────────
-# SEPSIS-3 LABEL GENERATION (MAIN)
 # ─────────────────────────────────────────────────
 
 def generate_sepsis3_labels(
@@ -336,10 +322,8 @@ def generate_sepsis3_labels(
     """
     print("  [Sepsis-3] Computing SOFA scores...")
 
-    # Compute hourly SOFA
     sofa_df = compute_hourly_sofa(vitals_labs_df)
 
-    # Merge SOFA into main df
     df = vitals_labs_df.merge(
         sofa_df.drop(columns=["sofa_respiratory","sofa_coagulation",
                                "sofa_liver","sofa_cardiovascular",
@@ -352,7 +336,6 @@ def generate_sepsis3_labels(
 
     def compute_sofa_increase(group):
         sofa = group["sofa_total"].fillna(0)
-        # Baseline = minimum SOFA in first 24h
         baseline_window = sofa[group["hour"] <= 24]
         baseline = baseline_window.min() if len(baseline_window) > 0 else 0
         group = group.copy()
@@ -374,7 +357,6 @@ def generate_sepsis3_labels(
             continue  # No suspected infection → cannot be sepsis-3
 
         si_hour = si_lookup[pid]
-        # SOFA must be ≥ 2 AND in temporal proximity to suspected infection
         organ_dysfunction = group[
             (group["sofa_increase"] >= sofa_increase_threshold) &
             (group["hour"] >= max(0, si_hour - 24)) &
@@ -401,7 +383,6 @@ def generate_sepsis3_labels(
 
 
 # ─────────────────────────────────────────────────
-# CLI
 # ─────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -15,49 +15,37 @@ References:
 """
 
 # ─────────────────────────────────────────────────
-# VITAL SIGN ItemIDs  (from CHARTEVENTS)
 # ─────────────────────────────────────────────────
 
 VITAL_ITEMIDS = {
 
-    # Heart Rate (bpm)
     "HR": [211, 220045],
 
-    # Oxygen Saturation SpO2 (%)
     "O2Sat": [646, 220277],
 
-    # Temperature Celsius — prefer C; convert F if C missing
     "Temp_C": [676, 223762],
     "Temp_F": [678, 223761],   # will be converted: (F-32)*5/9
 
-    # Systolic Blood Pressure (mmHg)
     "SBP": [51, 220179, 225309],
 
-    # Diastolic Blood Pressure (mmHg)
     "DBP": [8368, 220180, 225310],
 
-    # Mean Arterial Pressure (mmHg)
     "MAP": [52, 220052, 225312, 224322],
 
-    # Respiratory Rate (breaths/min)
     "Resp": [615, 618, 220210, 224690],
 
-    # End-tidal CO2 (mmHg) — rarely documented
     "EtCO2": [1817, 228640],
 
-    # GCS components (for SOFA CNS score)
     "GCS_Eye":    [184, 220739],
     "GCS_Verbal": [723, 223900],
     "GCS_Motor":  [454, 223901],
 }
 
 # ─────────────────────────────────────────────────
-# LABORATORY ItemIDs  (from LABEVENTS via D_LABITEMS)
 # ─────────────────────────────────────────────────
 
 LAB_ITEMIDS = {
 
-    # Arterial Blood Gas
     "BaseExcess": [50802],
     "HCO3":       [50882],        # Bicarbonate
     "FiO2":       [50816],        # Fraction Inspired O2 (also in CHARTEVENTS: 223835)
@@ -66,13 +54,11 @@ LAB_ITEMIDS = {
     "PaO2":       [50821],        # Arterial pO2 (for PF ratio)
     "SaO2":       [50817],        # Arterial O2 Saturation
 
-    # Liver
     "AST":              [50878],  # Aspartate aminotransferase
     "Alkalinephos":     [50863],  # Alkaline phosphatase
     "Bilirubin_total":  [50885],
     "Bilirubin_direct": [50883],
 
-    # Renal / Electrolytes
     "BUN":        [51006],        # Blood Urea Nitrogen
     "Calcium":    [50893],
     "Chloride":   [50902],
@@ -82,11 +68,9 @@ LAB_ITEMIDS = {
     "Potassium":  [50971],
     "Sodium":     [50983],
 
-    # Metabolic
     "Glucose":  [50931, 50809],   # 50931=serum, 50809=whole blood
     "Lactate":  [50813],
 
-    # Hematology
     "Hct":        [51221],        # Hematocrit
     "Hgb":        [51222],        # Hemoglobin
     "Platelets":  [51265],
@@ -94,76 +78,46 @@ LAB_ITEMIDS = {
     "Fibrinogen": [51214],
     "WBC":        [51301],
 
-    # Cardiac
     "TroponinI": [51002],
 }
 
-# FiO2 is also documented in CHARTEVENTS for ventilated patients
 FIO2_CHART_ITEMIDS = [3420, 190, 223835, 3422]
 
 # ─────────────────────────────────────────────────
-# VASOPRESSOR / ANTIBIOTIC ItemIDs  (INPUTEVENTS_MV / INPUTEVENTS_CV)
-# Used for Sepsis-3 suspected infection criterion
 # ─────────────────────────────────────────────────
 
 VASOPRESSOR_ITEMIDS = {
-    # Norepinephrine
     "norepinephrine": [30047, 30112, 221906],
-    # Epinephrine
     "epinephrine":    [30044, 30119, 30309, 221289],
-    # Dopamine
     "dopamine":       [30043, 30307, 221662],
-    # Dobutamine
     "dobutamine":     [30042, 30306, 221653],
-    # Vasopressin
     "vasopressin":    [30051, 222315],
-    # Phenylephrine
     "phenylephrine":  [30127, 30128, 221749],
 }
 
 ANTIBIOTIC_ITEMIDS = [
-    # Vancomycin
     225798, 225849,
-    # Piperacillin-Tazobactam
     225893, 225894,
-    # Meropenem
     225909,
-    # Ceftriaxone
     225855,
-    # Metronidazole
     225884,
-    # Ciprofloxacin
     225860,
-    # Levofloxacin
     225887,
-    # Ampicillin
     225843,
-    # Cefazolin
     225850,
-    # Gentamicin
     225879,
-    # Azithromycin
     225846,
-    # Clindamycin
     225861,
-    # Trimethoprim-Sulfamethoxazole
     225906,
-    # Linezolid
     225888,
-    # Daptomycin
     225863,
-    # Amikacin
     225840,
-    # Oxacillin
     225891,
-    # Nafcillin
     225890,
-    # Colistin
     225862,
 ]
 
 # ─────────────────────────────────────────────────
-# URINE OUTPUT (OUTPUTEVENTS) — for SOFA renal
 # ─────────────────────────────────────────────────
 
 URINE_OUTPUT_ITEMIDS = [
@@ -192,8 +146,6 @@ URINE_OUTPUT_ITEMIDS = [
 ]
 
 # ─────────────────────────────────────────────────
-# MAPPING FROM FEATURE NAME → COLUMN NAME
-# (used to standardize output to our pipeline format)
 # ─────────────────────────────────────────────────
 
 FEATURE_TO_COLUMN = {
@@ -235,7 +187,6 @@ FEATURE_TO_COLUMN = {
 }
 
 # ─────────────────────────────────────────────────
-# PLAUSIBILITY BOUNDS — clip physiologically impossible values
 # ─────────────────────────────────────────────────
 
 VALUE_BOUNDS = {

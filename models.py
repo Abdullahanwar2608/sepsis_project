@@ -18,7 +18,6 @@ from typing import Tuple, Dict, Any, List, Optional
 import warnings
 warnings.filterwarnings("ignore")
 
-# Ensure UTF-8 output on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -52,7 +51,6 @@ ensure_dirs()
 
 
 # ─────────────────────────────────────────────────
-# MANUAL ISOTONIC CALIBRATION WRAPPER
 # ─────────────────────────────────────────────────
 
 class IsotonicCalibrator:
@@ -79,13 +77,11 @@ class IsotonicCalibrator:
             cal_probs = self.calibrator.predict(raw_probs)
         else:
             cal_probs = raw_probs
-        # Return shape (N, 2) matching sklearn convention
         return np.column_stack([1 - cal_probs, cal_probs])
 
     def predict(self, X):
         return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
 
-    # Forward any attribute lookups to base model (for feature_importances_, etc.)
     def __getattr__(self, name):
         if name in ("base_model", "calibrator", "_fitted"):
             raise AttributeError(name)
@@ -94,7 +90,6 @@ class IsotonicCalibrator:
 
 
 # ─────────────────────────────────────────────────
-# CONFIDENT LEARNING — Label Noise Weighting
 # ─────────────────────────────────────────────────
 
 def confident_learning_weights(
@@ -119,7 +114,6 @@ def confident_learning_weights(
     probs = np.zeros(len(y_train), dtype=float)
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-    # Use a fast LR for probability estimation
     lr = LogisticRegression(
         max_iter=500, C=0.5,
         class_weight="balanced",
@@ -132,7 +126,6 @@ def confident_learning_weights(
 
     weights = np.ones(len(y_train), dtype=float)
 
-    # Flag noisy labels
     noisy_pos = (y_train == 1) & (probs < noise_threshold)
     noisy_neg = (y_train == 0) & (probs > (1 - noise_threshold))
 
@@ -148,7 +141,6 @@ def confident_learning_weights(
 
 
 # ─────────────────────────────────────────────────
-# CLINICAL UTILITY SCORE
 # ─────────────────────────────────────────────────
 
 def physionet_utility_score(
@@ -202,7 +194,6 @@ def select_optimal_threshold(
 
 
 # ─────────────────────────────────────────────────
-# MODEL DEFINITIONS
 # ─────────────────────────────────────────────────
 
 def build_models(class_ratio: float = 10.0) -> Dict[str, Any]:
@@ -285,7 +276,6 @@ def build_models(class_ratio: float = 10.0) -> Dict[str, Any]:
 
 
 # ─────────────────────────────────────────────────
-# EVALUATION
 # ─────────────────────────────────────────────────
 
 def evaluate_model(
@@ -329,7 +319,6 @@ def evaluate_model(
 
 
 # ─────────────────────────────────────────────────
-# TRAIN A SINGLE MODEL
 # ─────────────────────────────────────────────────
 
 def train_single_model(
@@ -345,22 +334,18 @@ def train_single_model(
     """Train one model, calibrate, select threshold, evaluate on validation set."""
     print(f"\n  Training {model_name}...")
 
-    # Fit with or without sample weights
     fit_kwargs = {}
     if sample_weights is not None:
-        # Map model name to fit param name
         if model_name in ("xgboost", "lightgbm", "gradient_boosting"):
             fit_kwargs["sample_weight"] = sample_weights
         elif model_name in ("random_forest",):
             fit_kwargs["sample_weight"] = sample_weights
-        # LR doesn't support sample_weight in fit() for all solvers — skip
 
     try:
         model.fit(X_train, y_train, **fit_kwargs)
     except TypeError:
         model.fit(X_train, y_train)
 
-    # Calibrate probabilities using our IsotonicCalibrator
     if calibrate:
         cal_model = IsotonicCalibrator(model)
         cal_model.fit(X_val, y_val)
@@ -369,13 +354,10 @@ def train_single_model(
     else:
         final_model = model
 
-    # Validation probabilities
     probs_val = final_model.predict_proba(X_val)[:, 1]
 
-    # Clinical threshold selection
     threshold = select_optimal_threshold(y_val, probs_val, strategy="utility")
 
-    # Evaluate on validation
     preds_val = (probs_val >= threshold).astype(int)
     val_metrics = evaluate_model(y_val, probs_val, preds_val, split="val")
 
@@ -383,7 +365,6 @@ def train_single_model(
 
 
 # ─────────────────────────────────────────────────
-# FULL TRAINING PIPELINE
 # ─────────────────────────────────────────────────
 
 def run_training_pipeline(
@@ -414,7 +395,6 @@ def run_training_pipeline(
     X_test = test_df[feature_cols].values.astype(np.float32)
     y_test = test_df["target"].values.astype(int)
 
-    # Handle any remaining NaN
     X_train = np.nan_to_num(X_train, nan=0.0)
     X_val = np.nan_to_num(X_val, nan=0.0)
     X_test = np.nan_to_num(X_test, nan=0.0)
@@ -438,7 +418,6 @@ def run_training_pipeline(
         print("\n[Label Noise] Running Confident Learning...")
         cl_weights = confident_learning_weights(X_train_sc, y_train)
 
-    # Combine CL weights with class-balance weights
     final_weights = cl_weights * class_weights if cl_weights is not None else class_weights
 
     # ── Build and train models ────────────────────────────────────────────
@@ -451,13 +430,11 @@ def run_training_pipeline(
         print(f"\n{'=' * 50}")
         print(f"  Model: {model_name.upper()}")
 
-        # LR uses scaled features; tree models use raw
         use_scaled = (model_name == "logistic_regression")
         X_tr = X_train_sc if use_scaled else X_train
         X_vl = X_val_sc if use_scaled else X_val
         X_ts = X_test_sc if use_scaled else X_test
 
-        # Train
         trained_model, threshold, val_metrics = train_single_model(
             model, model_name,
             X_tr, y_train,
@@ -466,7 +443,6 @@ def run_training_pipeline(
             calibrate=True
         )
 
-        # Test evaluation
         probs_test = trained_model.predict_proba(X_ts)[:, 1]
         preds_test = (probs_test >= threshold).astype(int)
         test_metrics = evaluate_model(y_test, probs_test, preds_test, split="test")
@@ -484,7 +460,6 @@ def run_training_pipeline(
             "feature_cols": feature_cols,
         }
 
-        # Save model artifact
         save_path = os.path.join(output_dir, f"{model_name}.pkl")
         joblib.dump({
             "model": trained_model,
@@ -506,7 +481,6 @@ def run_training_pipeline(
 
 
 # ─────────────────────────────────────────────────
-# INFERENCE HELPER
 # ─────────────────────────────────────────────────
 
 def predict_sepsis_risk(

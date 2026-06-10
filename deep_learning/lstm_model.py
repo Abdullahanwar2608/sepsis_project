@@ -23,7 +23,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # ─────────────────────────────────────────────────
-# PYTORCH CHECK — graceful fallback
 # ─────────────────────────────────────────────────
 
 try:
@@ -48,7 +47,6 @@ ensure_dirs()
 
 
 # ─────────────────────────────────────────────────
-# SEQUENCE DATASET
 # ─────────────────────────────────────────────────
 
 if HAS_TORCH:
@@ -79,13 +77,10 @@ if HAS_TORCH:
                 X = group[feature_cols].values.astype(np.float32)
                 y = group["target"].values.astype(np.float32)
 
-                # Use per-row label (not just last) for sequence classification
-                # We predict at every timestep
                 T = min(len(X), max_len)
                 X_trunc = X[-T:]
                 y_trunc = y[-T:]
 
-                # Pad to max_len
                 pad_len = max_len - T
                 X_pad = np.vstack([
                     np.zeros((pad_len, X.shape[1]), dtype=np.float32),
@@ -114,7 +109,6 @@ if HAS_TORCH:
 
 
     # ─────────────────────────────────────────────────
-    # ATTENTION MODULE
     # ─────────────────────────────────────────────────
 
     class TemporalAttention(nn.Module):
@@ -140,7 +134,6 @@ if HAS_TORCH:
 
 
     # ─────────────────────────────────────────────────
-    # BIDIRECTIONAL LSTM MODEL
     # ─────────────────────────────────────────────────
 
     class SepsisLSTM(nn.Module):
@@ -165,7 +158,6 @@ if HAS_TORCH:
             self.bidirectional = bidirectional
             self.directions = 2 if bidirectional else 1
 
-            # Input projection (normalize + embed)
             self.input_proj = nn.Sequential(
                 nn.Linear(input_size, hidden_size),
                 nn.LayerNorm(hidden_size),
@@ -173,7 +165,6 @@ if HAS_TORCH:
                 nn.Dropout(dropout * 0.5)
             )
 
-            # Bidirectional LSTM
             self.lstm = nn.LSTM(
                 input_size=hidden_size,
                 hidden_size=hidden_size,
@@ -185,13 +176,10 @@ if HAS_TORCH:
 
             lstm_out_size = hidden_size * self.directions
 
-            # Layer normalization after LSTM
             self.layer_norm = nn.LayerNorm(lstm_out_size)
 
-            # Temporal attention
             self.attention = TemporalAttention(lstm_out_size)
 
-            # Classification head
             self.classifier = nn.Sequential(
                 nn.Linear(lstm_out_size, hidden_size // 2),
                 nn.ReLU(),
@@ -199,7 +187,6 @@ if HAS_TORCH:
                 nn.Linear(hidden_size // 2, 1)
             )
 
-            # Per-timestep classifier (for sequence output)
             self.timestep_classifier = nn.Sequential(
                 nn.Linear(lstm_out_size, 1)
             )
@@ -228,26 +215,21 @@ if HAS_TORCH:
             Returns:
                 logits: [batch, seq_len] if return_sequence else [batch]
             """
-            # Project input
             h = self.input_proj(x)   # [batch, seq_len, hidden]
 
-            # LSTM
             lstm_out, _ = self.lstm(h)   # [batch, seq_len, hidden*dirs]
             lstm_out = self.layer_norm(lstm_out)
 
             if return_sequence:
-                # Per-timestep prediction (train on all valid timesteps)
                 logits = self.timestep_classifier(lstm_out).squeeze(-1)
                 return logits  # [batch, seq_len]
             else:
-                # Attention pooling → single prediction
                 context, _ = self.attention(lstm_out, mask)
                 logits = self.classifier(context).squeeze(-1)
                 return logits  # [batch]
 
 
     # ─────────────────────────────────────────────────
-    # TRAINING LOOP
     # ─────────────────────────────────────────────────
 
     def train_lstm(
@@ -292,7 +274,6 @@ if HAS_TORCH:
         n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"  SepsisLSTM: {n_params:,} trainable parameters")
 
-        # Class-weighted BCE loss
         pos_weight_val = (train_df["target"] == 0).sum() / max((train_df["target"] == 1).sum(), 1)
         pos_weight = torch.tensor([pos_weight_val], dtype=torch.float32).to(DEVICE)
         criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction="none")
@@ -321,7 +302,6 @@ if HAS_TORCH:
                 optimizer.zero_grad()
                 logits = model(X_batch, mask_batch, return_sequence=True)
 
-                # Only compute loss on real (non-padded) timesteps
                 loss = criterion(logits, y_batch)
                 masked_loss = (loss * mask_batch).sum() / (mask_batch.sum() + 1e-8)
 
@@ -347,7 +327,6 @@ if HAS_TORCH:
                     labels = y_batch.numpy()
                     masks  = mask_batch.cpu().numpy()
 
-                    # Only collect real timesteps
                     for i in range(len(probs)):
                         m = masks[i].astype(bool)
                         all_probs.append(probs[i][m])
@@ -384,13 +363,11 @@ if HAS_TORCH:
                           f"(no improvement for {patience} epochs)")
                     break
 
-        # Restore best weights
         if best_state is not None:
             model.load_state_dict(best_state)
 
         print(f"\n  Best Val AUROC: {best_auroc:.4f}")
 
-        # Save model
         save_path = str(MODELS_DIR / "lstm_model.pt")
         torch.save({
             "model_state_dict": model.state_dict(),
@@ -443,7 +420,6 @@ if HAS_TORCH:
 
 
 else:
-    # Stub classes/functions when PyTorch not available
     class SepsisLSTM:
         pass
 

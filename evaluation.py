@@ -40,7 +40,6 @@ from utils import OUTPUTS_DIR, ensure_dirs
 ensure_dirs()
 
 # ─────────────────────────────────────────────────
-# STYLE CONSTANTS
 # ─────────────────────────────────────────────────
 
 MODEL_COLORS = {
@@ -70,7 +69,6 @@ def _color(name: str) -> str:
 
 
 # ─────────────────────────────────────────────────
-# ROC CURVES
 # ─────────────────────────────────────────────────
 
 def plot_roc_curves(
@@ -107,7 +105,6 @@ def plot_roc_curves(
 
 
 # ─────────────────────────────────────────────────
-# PRECISION-RECALL CURVES
 # ─────────────────────────────────────────────────
 
 def plot_pr_curves(
@@ -146,7 +143,6 @@ def plot_pr_curves(
 
 
 # ─────────────────────────────────────────────────
-# CALIBRATION CURVES
 # ─────────────────────────────────────────────────
 
 def plot_calibration_curves(
@@ -186,7 +182,6 @@ def plot_calibration_curves(
 
 
 # ─────────────────────────────────────────────────
-# CONFUSION MATRICES
 # ─────────────────────────────────────────────────
 
 def plot_confusion_matrices(
@@ -202,7 +197,6 @@ def plot_confusion_matrices(
         y, preds = r["y_test"], r["test_preds"]
         cm = confusion_matrix(y, preds, labels=[0, 1])
 
-        # Normalize for color mapping but show raw counts
         cm_norm = cm.astype(float) / cm.sum()
         sns.heatmap(
             cm_norm, ax=ax, cmap="Blues",
@@ -238,7 +232,6 @@ def plot_confusion_matrices(
 
 
 # ─────────────────────────────────────────────────
-# FEATURE IMPORTANCE
 # ─────────────────────────────────────────────────
 
 def plot_feature_importance(
@@ -253,7 +246,6 @@ def plot_feature_importance(
     for name, r in results.items():
         model = r["model"]
 
-        # Unwrap calibration wrapper
         base = model
         if hasattr(model, "calibrated_classifiers_"):
             try:
@@ -282,7 +274,6 @@ def plot_feature_importance(
         bars = ax.barh(feat_df["feature"], feat_df["importance"],
                        color=colors, edgecolor="white", height=0.7)
 
-        # Value labels
         for bar, val in zip(bars, feat_df["importance"]):
             ax.text(bar.get_width() + feat_df["importance"].max() * 0.01,
                     bar.get_y() + bar.get_height() / 2,
@@ -304,7 +295,6 @@ def plot_feature_importance(
 
 
 # ─────────────────────────────────────────────────
-# UTILITY SCORE VS THRESHOLD
 # ─────────────────────────────────────────────────
 
 def plot_utility_vs_threshold(
@@ -347,7 +337,6 @@ def plot_utility_vs_threshold(
 
 
 # ─────────────────────────────────────────────────
-# METRICS SUMMARY TABLE
 # ─────────────────────────────────────────────────
 
 def generate_metrics_table(results: Dict[str, Dict]) -> pd.DataFrame:
@@ -373,13 +362,11 @@ def generate_metrics_table(results: Dict[str, Dict]) -> pd.DataFrame:
         })
 
     df = pd.DataFrame(rows)
-    # Sort by AUROC descending
     df = df.sort_values("AUROC", ascending=False).reset_index(drop=True)
     return df
 
 
 # ─────────────────────────────────────────────────
-# COMBINED SUMMARY DASHBOARD
 # ─────────────────────────────────────────────────
 
 def plot_summary_dashboard(
@@ -388,7 +375,6 @@ def plot_summary_dashboard(
     save_path: str = None
 ) -> str:
     """4-panel summary dashboard: ROC, PR, Calibration, Feature Importance."""
-    # Find best tree model for feature importance
     best_tree = None
     best_auroc = 0
     for name, r in results.items():
@@ -484,7 +470,6 @@ def plot_summary_dashboard(
 
 
 # ─────────────────────────────────────────────────
-# FULL EVALUATION RUNNER
 # ─────────────────────────────────────────────────
 
 def run_evaluation_pipeline(
@@ -521,7 +506,6 @@ def run_evaluation_pipeline(
     print("  Generating summary dashboard...")
     plot_paths["dashboard"] = plot_summary_dashboard(results, feature_cols)
 
-    # Metrics table
     metrics_table = generate_metrics_table(results)
     print("\n" + "=" * 60)
     print("TEST SET RESULTS:")
@@ -535,7 +519,6 @@ def run_evaluation_pipeline(
     return plot_paths, metrics_table
 
 
-# Expose Tuple type for import
 from typing import Tuple
 
 

@@ -21,7 +21,6 @@ from typing import Tuple, List, Optional, Dict
 import warnings
 warnings.filterwarnings("ignore")
 
-# Ensure UTF-8 output on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -32,7 +31,6 @@ set_seed(42)
 
 
 # ─────────────────────────────────────────────────
-# CONSTANTS — PhysioNet 2019 Feature Schema
 # ─────────────────────────────────────────────────
 
 VITAL_COLS = [
@@ -56,7 +54,6 @@ LABEL_NOISE_WINDOW = 3   # smoothing window for noisy labels
 
 
 # ─────────────────────────────────────────────────
-# 1. DATA LOADING
 # ─────────────────────────────────────────────────
 
 def load_physionet_psv(data_dir: str, max_patients: Optional[int] = None) -> pd.DataFrame:
@@ -92,7 +89,6 @@ def load_physionet_psv(data_dir: str, max_patients: Optional[int] = None) -> pd.
 
     combined = pd.concat(dfs, ignore_index=True)
 
-    # Ensure all expected columns exist
     for col in FEATURE_COLS + [LABEL_COL]:
         if col not in combined.columns:
             combined[col] = np.nan
@@ -125,15 +121,12 @@ def load_mimic_csv(
         pids = df["patient_id"].unique()[:max_patients]
         df = df[df["patient_id"].isin(pids)].copy()
 
-    # Ensure all expected feature columns exist
     for col in FEATURE_COLS + [LABEL_COL]:
         if col not in df.columns:
             df[col] = np.nan
 
-    # Ensure hour is integer
     df["hour"] = df["hour"].astype(int)
 
-    # Fill SepsisLabel (Sepsis-3 label from extractor, or 0)
     if "SepsisLabel" in df.columns:
         df[LABEL_COL] = df["SepsisLabel"].fillna(0).astype(int)
     else:
@@ -197,13 +190,11 @@ def generate_synthetic_dataset(n_patients: int = 2000, seed: int = 42) -> pd.Dat
         else:
             onset_hour = None
 
-        # Patient-level baseline variation
         base_hr = np.random.normal(70, 8)
         base_sbp = np.random.normal(120, 12)
         age = np.random.randint(40, 85)
 
         for h in range(stay_len):
-            # Physiological deterioration trajectory
             if is_sepsis and onset_hour is not None:
                 hours_to_onset = onset_hour - h
                 if hours_to_onset > 12:
@@ -220,7 +211,6 @@ def generate_synthetic_dataset(n_patients: int = 2000, seed: int = 42) -> pd.Dat
             row = {
                 "patient_id": f"p{pid:06d}",
                 "hour": h,
-                # Vitals — correlated deterioration
                 "HR": np.random.normal(base_hr + 35 * progress, 8),
                 "O2Sat": np.random.normal(98 - 6 * progress, 1.5),
                 "Temp": np.random.normal(37.0 + 1.8 * progress, 0.4),
@@ -229,7 +219,6 @@ def generate_synthetic_dataset(n_patients: int = 2000, seed: int = 42) -> pd.Dat
                 "DBP": np.random.normal(75 - 12 * progress, 6),
                 "Resp": np.random.normal(16 + 10 * progress, 2.5),
                 "EtCO2": np.nan,
-                # Key labs
                 "Lactate": np.random.normal(1.2 + 3.5 * progress, 0.4),
                 "WBC": np.random.normal(8 + 8 * progress, 2),
                 "Creatinine": np.random.normal(1.0 + 2.0 * progress, 0.25),
@@ -244,25 +233,21 @@ def generate_synthetic_dataset(n_patients: int = 2000, seed: int = 42) -> pd.Dat
                 "Hgb": np.random.normal(12.5 - 1.5 * progress, 1),
                 "PTT": np.random.normal(30 + 10 * progress, 4),
                 "Fibrinogen": np.random.normal(300 - 100 * progress, 40),
-                # Demographics (constant per patient)
                 "Age": age,
                 "Gender": np.random.randint(0, 2),
                 "Unit1": np.random.randint(0, 2),
                 "Unit2": np.random.randint(0, 2),
                 "HospAdmTime": np.random.uniform(-24, 0),
                 "ICULOS": h,
-                # Label: 1 only during/after onset
                 "SepsisLabel": int(
                     is_sepsis and onset_hour is not None and h >= onset_hour
                 ),
             }
 
-            # Fill remaining lab cols with NaN
             for col in LAB_COLS:
                 if col not in row:
                     row[col] = np.nan
 
-            # Simulate missingness: ~60% labs, ~15% vitals
             for col in LAB_COLS:
                 if np.random.random() < 0.60:
                     row[col] = np.nan
@@ -280,7 +265,6 @@ def generate_synthetic_dataset(n_patients: int = 2000, seed: int = 42) -> pd.Dat
 
 
 # ─────────────────────────────────────────────────
-# 2. LABEL ENGINEERING — 6-HOUR AHEAD TARGET
 # ─────────────────────────────────────────────────
 
 def create_prediction_labels(
@@ -318,14 +302,10 @@ def create_prediction_labels(
         if len(pos_hours) == 0:
             continue  # Non-sepsis patient
 
-        # Clinical diagnosis time (first positive label)
         diagnosis_hour = pos_hours[0]
 
-        # Estimate true onset: back-shift by noise_window to account for
-        # physician documentation lag (labels often entered retroactively)
         true_onset_estimate = max(0, diagnosis_hour - noise_window)
 
-        # Prediction window: target=1 for hours [true_onset - horizon, true_onset)
         pred_start = max(0, true_onset_estimate - horizon)
         pred_end = true_onset_estimate
 
@@ -345,7 +325,6 @@ def create_prediction_labels(
 
 
 # ─────────────────────────────────────────────────
-# 3. MISSING VALUE HANDLING
 # ─────────────────────────────────────────────────
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
@@ -396,10 +375,8 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     medians = df[feature_cols].median()
     df[feature_cols] = df[feature_cols].fillna(medians)
 
-    # Final safety fill: if entire column is NaN, median is also NaN → fill with 0
     df[feature_cols] = df[feature_cols].fillna(0)
 
-    # Fill time-since columns that are still NaN (no prior obs) with 999
     time_since_cols = [c for c in df.columns if c.endswith("_time_since")]
     df[time_since_cols] = df[time_since_cols].fillna(999)
 
@@ -409,7 +386,6 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────
-# 4. TEMPORAL FEATURE ENGINEERING
 # ─────────────────────────────────────────────────
 
 def engineer_temporal_features(
@@ -448,7 +424,6 @@ def engineer_temporal_features(
             )
 
     # ── SOFA proxy (simplified) ──────────────────────────────────────────
-    # Captures multi-organ dysfunction (the clinical definition of sepsis)
     sofa_components = {}
     if "Creatinine" in df.columns:
         sofa_components["renal"] = (df["Creatinine"] > 1.2).astype(int)
@@ -462,7 +437,6 @@ def engineer_temporal_features(
         new_cols["sofa_proxy"] = sum(sofa_components.values())
 
     # ── NEWS score proxy ─────────────────────────────────────────────────
-    # UK National Early Warning Score for acute deterioration
     news = pd.Series(0, index=df.index)
     if "Resp" in df.columns:
         news += (df["Resp"] >= 25).astype(int) * 3
@@ -507,7 +481,6 @@ def engineer_temporal_features(
 
 
 # ─────────────────────────────────────────────────
-# 5. LABEL NOISE MITIGATION
 # ─────────────────────────────────────────────────
 
 def detect_label_noise(
@@ -529,11 +502,8 @@ def detect_label_noise(
     df = df.copy()
 
     if method == "temporal_consistency":
-        # Enforce monotonicity: once target=1, it stays 1.
-        # Use a vectorized cummax approach (no groupby.apply needed).
         df = df.sort_values(["patient_id", "hour"]).reset_index(drop=True)
 
-        # cummax within patient groups: once we see a 1, all subsequent rows become 1
         df["target"] = (
             df.groupby("patient_id")["target"]
             .transform("cummax")
@@ -551,7 +521,6 @@ def detect_label_noise(
 
 
 # ─────────────────────────────────────────────────
-# 6. TRAIN/VAL/TEST SPLIT — Patient-Level Stratified
 # ─────────────────────────────────────────────────
 
 def patient_stratified_split(
@@ -586,7 +555,6 @@ def patient_stratified_split(
         n = len(pids)
         n_val = int(n * val_ratio)
         n_test = int(n * test_ratio)
-        # train gets the remainder
         train = pids[n_val + n_test:]
         val = pids[:n_val]
         test = pids[n_val:n_val + n_test]
@@ -623,7 +591,6 @@ def get_feature_columns(df: pd.DataFrame) -> List[str]:
 
 
 # ─────────────────────────────────────────────────
-# MAIN PIPELINE RUNNER
 # ─────────────────────────────────────────────────
 
 def run_preprocessing_pipeline(
