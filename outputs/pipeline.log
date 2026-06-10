@@ -89,3 +89,37 @@ Generated files:
 [2026-06-10 17:42:53] INFO —   [dashboard   ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\summary_dashboard.png
 [2026-06-10 17:42:53] INFO —   [metrics_csv ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\metrics_table.csv
 [2026-06-10 17:42:53] INFO — ============================================================
+[2026-06-10 17:52:59] INFO — ============================================================
+[2026-06-10 17:52:59] INFO — SEPSIS ONSET PREDICTION PIPELINE
+[2026-06-10 17:52:59] INFO — ============================================================
+[2026-06-10 17:52:59] INFO — Downloading PhysioNet 2019 Challenge data...
+[2026-06-10 17:53:01] WARNING — Download failed — switching to synthetic data
+[2026-06-10 17:53:01] INFO — 
+STEP 1: Preprocessing
+[2026-06-10 17:53:55] INFO — Preprocessing complete in 54.37s
+[2026-06-10 17:53:55] INFO — 
+STEP 2: Model Training (ML)
+[2026-06-10 17:54:47] INFO — ML training complete in 51.46s
+[2026-06-10 17:54:47] INFO — 
+STEP 3: Deep Learning (Bidirectional LSTM)
+[2026-06-10 17:54:47] WARNING — PyTorch not installed — LSTM skipped
+[2026-06-10 17:54:47] WARNING — Install with: pip install torch
+[2026-06-10 17:54:47] INFO — 
+STEP 4: Evaluation & Visualization
+[2026-06-10 17:54:53] INFO — Evaluation complete in 6.41s
+[2026-06-10 17:54:53] INFO — 
+============================================================
+[2026-06-10 17:54:53] INFO — PIPELINE COMPLETE
+[2026-06-10 17:54:53] INFO — Outputs saved to: C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs
+[2026-06-10 17:54:53] INFO — Models saved to:  C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\models
+[2026-06-10 17:54:53] INFO — 
+Generated files:
+[2026-06-10 17:54:53] INFO —   [roc         ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\roc_curves.png
+[2026-06-10 17:54:53] INFO —   [pr          ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\pr_curves.png
+[2026-06-10 17:54:53] INFO —   [cal         ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\calibration_curves.png
+[2026-06-10 17:54:53] INFO —   [cm          ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\confusion_matrices.png
+[2026-06-10 17:54:53] INFO —   [fi          ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\feature_importance_lightgbm.png
+[2026-06-10 17:54:53] INFO —   [utility     ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\utility_vs_threshold.png
+[2026-06-10 17:54:53] INFO —   [dashboard   ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\summary_dashboard.png
+[2026-06-10 17:54:53] INFO —   [metrics_csv ] C:\Users\abdul\OneDrive\Desktop\ML\sepsis_project\outputs\metrics_table.csv
+[2026-06-10 17:54:53] INFO — ============================================================
